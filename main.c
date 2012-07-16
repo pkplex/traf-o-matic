@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <syslog.h>
 #include <stdio.h>
 #include "tom.h"
 
@@ -22,7 +23,10 @@ main(int argc, char **argv)
 {
     struct tom tomi;
 
-    if (tom_init(&tomi, "eth1") != TOM_OK) {
+    /* sort out syslog */
+    openlog("tom", LOG_PID | LOG_NDELAY, LOG_DAEMON);
+
+    if (tom_init(&tomi, "eth1", "./logs") != TOM_OK) {
         printf("Well, shit.\n");
         return 1;
     }
@@ -45,6 +49,7 @@ main(int argc, char **argv)
     b.addr[3] = 0;
     tom_add_target(&tomi, &b);
 
+    syslog(LOG_INFO, "Starting");
     while (tom_capture_one(&tomi) != TOM_FAIL) { 
 
         /* DEBUG ONLY: wont be running purge each capture */

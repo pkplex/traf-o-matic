@@ -1,5 +1,5 @@
-objects = main.o tom.o
-sources = main.c tom.c
+objects = main.o tom.o strlcat.o strlcpy.o
+sources = main.c tom.c strlcat.c strlcpy.c
 execname = TOM
 cflags = -Wall
 libs = -lpcap	

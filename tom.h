@@ -32,7 +32,7 @@ enum {
 };
 
 #define TOM_CAPLEN    65536     /* max packet capture size */
-#define TOM_PURGETIME 5         /* time till expiry of inactive hosts  */
+#define TOM_PURGETIME 2         /* time till expiry of inactive hosts  */
 
 
 /* structure which holds a single ip address */
@@ -61,7 +61,8 @@ struct tom {
     char            ebuff[PCAP_ERRBUF_SIZE];
     struct ip_addr *targets;
     struct host    *hosts;
-    uint32_t       hosts_size;
+    uint32_t        hosts_size;
+    char           *log_dir;
 };
 
 
@@ -78,7 +79,7 @@ extern int   ip_same(struct ip_addr *a, struct ip_addr *b);
 extern int   ip_same_subnet(struct ip_addr *ip, struct ip_addr *subnet);
 extern int   tom_capture_one(struct tom *tomi);
 extern void  tom_free(struct tom *tomi);
-extern int   tom_init(struct tom *tomi, char *interface_name);
+extern int   tom_init(struct tom *tomi, char *interface_name, const char *log_dir);
 
 
 #endif

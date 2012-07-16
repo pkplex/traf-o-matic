@@ -16,18 +16,51 @@
 
 #include <sys/time.h>
 #include <arpa/inet.h>
+#include <syslog.h>
 #include <pcap.h>
 #include <string.h>
 #include <err.h>
 #include <stdlib.h>
 
 #include "tom.h"
-
+#include "string.h"
 
 int
 host_log(struct tom *tomi, struct host *h)
 {
-    printf("TODO: finish host_log :)\n");
+    char path[256];
+    char ip[64];
+    FILE *fh;
+    struct timeval now;
+
+    printf("sizeof(path) is %u\n", sizeof(path));
+
+    ip_str(&h->ip, ip, sizeof(ip));
+    if (strlcpy(path, tomi->log_dir, sizeof(path)) >= sizeof(path) ||
+        strlcat(path, "/", sizeof(path)) >= sizeof(path) ||
+        strlcat(path, ip, sizeof(path)) >= sizeof(path)) {
+        syslog(LOG_ERR, "log path too long");
+        return TOM_FAIL;
+    }
+
+    fh = fopen(path, "a");
+    if (!fh) {
+        syslog(LOG_ERR, "Could not open %s for writing", path);
+        return TOM_FAIL;
+    }
+
+    /* output is: <epoch> <tx bytes> <rx bytes>\n */
+    if (fprintf(fh, "%u %u %u\n", h->last_logged, h->tx, h->rx) < 0) {
+        syslog(LOG_ERR, "Failed to write to %s\n", path);
+        fclose(fh);
+        return TOM_FAIL;
+    }
+    fclose(fh);
+    
+    gettimeofday(&now, NULL);
+    h->last_logged = now.tv_sec;
+
+    printf("Logged ok...\n");
     return TOM_OK;
 }
 
@@ -374,6 +407,7 @@ tom_capture_one(struct tom *tomi)
         return TOM_TIMEOUT;
         break;
     default:
+        syslog(LOG_ERR, "%s", pcap_geterr(tomi->pcap_handle));
         tom_free(tomi);
         return TOM_FAIL;
     }
@@ -421,7 +455,7 @@ tom_free(struct tom *tomi)
 
 /* opens up a pcap session and gets shit ready */
 int
-tom_init(struct tom *tomi, char *iface_name)
+tom_init(struct tom *tomi, char *iface_name, const char *log_dir)
 {
     if (!tomi) 
         return TOM_INVALID;
@@ -437,6 +471,12 @@ tom_init(struct tom *tomi, char *iface_name)
     tomi->interface_name = strdup(iface_name);
     if (!tomi->interface_name)
         err(1, NULL);
+
+    tomi->log_dir = strdup(log_dir);
+    if (!tomi->log_dir)
+        err(1, NULL);
+    printf("Log dir is '%s'\n", tomi->log_dir);
+
 
     /* open the pcap device */
     tomi->pcap_handle = pcap_open_live(tomi->interface_name,
