@@ -22,14 +22,12 @@ main(int argc, char **argv)
 {
     struct tom tomi;
 
-    /* ----------------------- */
     if (tom_init(&tomi, "eth1") != TOM_OK) {
         printf("Well, shit.\n");
         return 1;
     }
 
     struct ip_addr a;
-
     a.type = TOM_IP4;
     a.mask = 12;
     a.addr[0] = 172;
@@ -47,16 +45,10 @@ main(int argc, char **argv)
     b.addr[3] = 0;
     tom_add_target(&tomi, &b);
 
-    uint32_t x = 0;
     while (tom_capture_one(&tomi) != TOM_FAIL) { 
-        host_purge(&tomi);
 
-        /* DEBUG EXIT */
-        x++;
-        if (x > 1000) {
-            printf("Exiting (DEBUG)\n");
-            break;
-        }
+        /* DEBUG ONLY: wont be running purge each capture */
+        host_purge(&tomi);
     }
 
     tom_free(&tomi);

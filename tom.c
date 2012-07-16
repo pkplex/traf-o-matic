@@ -253,8 +253,8 @@ ip_same_subnet(struct ip_addr *ip, struct ip_addr *subnet)
     if (ip->type == TOM_IP6)
         addr_len = 16;
 
-    int len;  /* how much of the subnet mMMasklength we have yet to check */
-    int mask; /* individual byte mask when we have < 8 bits to check */
+    int len;  /* how much of the subnet mask length we have yet to check */
+    int mask; /* individual byte mask (for when we have < 8 bits to check) */
     int x;    /* ip byte position */
 
     /* loop through each byte of the ip address */
