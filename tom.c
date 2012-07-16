@@ -1,12 +1,86 @@
+/*
+ * Copyright (c) 2012 Joshua Sandbrook.  All rights reserved.
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
 
+#include <sys/time.h>
 #include <arpa/inet.h>
-
 #include <pcap.h>
 #include <string.h>
 #include <err.h>
 #include <stdlib.h>
 
 #include "tom.h"
+
+
+int
+host_log(struct tom *tomi, struct host *h)
+{
+    printf("TODO: finish host_log :)\n");
+    return TOM_OK;
+}
+
+/* 
+ * go through list of hosts structures and remove them if they have 
+ * not sent data for some time.
+ */
+int
+host_purge(struct tom *tomi)
+{
+    struct host *thishost; /* this host */
+    struct host *prevhost; /* prev host */
+    struct host *nexthost; /* next host */
+
+    struct timeval now;
+    gettimeofday(&now, NULL);
+
+    /* DEBUG */
+    char dbuff[128];
+
+    prevhost = NULL;
+    thishost = tomi->hosts;
+    while (thishost) {
+        nexthost = thishost->next;
+        if ((now.tv_sec - thishost->last_traffic) > TOM_PURGETIME) {
+
+            /* debug */
+            ip_str(&thishost->ip, dbuff, sizeof(dbuff));
+            printf("purging %s (%u hosts remaining in list)\n", 
+                   dbuff, 
+                   tomi->hosts_size - 1);
+
+            /* if any data pending to write, write it... */
+            if (thishost->tx > 0 || thishost->tx > 0)
+                host_log(tomi, thishost);
+
+            /* now remove host from list */
+            
+            if (!prevhost)
+                tomi->hosts = nexthost;
+            else
+                prevhost->next = nexthost;
+            free(thishost);
+            thishost = nexthost;
+            tomi->hosts_size--;
+        }
+        else {
+            prevhost = thishost;
+            thishost = nexthost;
+        }
+    }
+    return TOM_OK;
+}
 
 /* allocate and init a host structure */
 struct host *
@@ -55,7 +129,7 @@ host_account(struct tom *tomi,
         return TOM_SKIPPED;
     }
 
-    /* now see if we already have a host in the list */
+    /* now see if we already have an existing host with same ip */
     struct host *ehost;
     ehost = tomi->hosts;
     while (ehost) {
@@ -69,9 +143,9 @@ host_account(struct tom *tomi,
         ehost = host_alloc();
         ehost->ip = *ip;
         ehost->last_logged = header->ts.tv_sec;
-        /* insert at start of hosts list */
         ehost->next = tomi->hosts;
         tomi->hosts = ehost;
+        tomi->hosts_size++;
     }
     
     ehost->last_traffic = header->ts.tv_sec;
@@ -80,9 +154,12 @@ host_account(struct tom *tomi,
     else
         ehost->rx += header->caplen;
 
-    printf("%s %u tx %u rx \n", buff, ehost->tx, ehost->rx);
+    /* DEBUG */
+    printf("(%u) %s %u tx %u rx \n", tomi->hosts_size, 
+           buff, 
+           ehost->tx, 
+           ehost->rx);
 
-    
     return TOM_OK;
 }
 
@@ -140,9 +217,9 @@ ip_str(struct ip_addr *ip, char *buff, size_t buff_size)
                  ip->addr[2],
                  ip->addr[3]);
     }
-    else {
+    else 
         snprintf(buff, buff_size, "ip_str(): IP6 not done yet");
-    }
+
 }
 
 int
@@ -160,9 +237,8 @@ ip_same(struct ip_addr *a, struct ip_addr *b)
 
     int x;
     for (x=0; x<len; x++) {
-        if (a->addr[x] != b->addr[x]) {
+        if (a->addr[x] != b->addr[x])
             return 0;
-        }
     }
     return 1;
 }
@@ -170,9 +246,8 @@ ip_same(struct ip_addr *a, struct ip_addr *b)
 int
 ip_same_subnet(struct ip_addr *ip, struct ip_addr *subnet)
 {
-    if (ip->type != subnet->type) {
+    if (ip->type != subnet->type)
         return 0;
-    }
 
     int addr_len = 4;  /* 4 bytes or 16 (ip4 or ip6) */
     if (ip->type == TOM_IP6)
@@ -183,17 +258,16 @@ ip_same_subnet(struct ip_addr *ip, struct ip_addr *subnet)
     int x;    /* ip byte position */
 
     /* loop through each byte of the ip address */
-    for (len=subnet->mask, x=0; x<addr_len && len>0; x++, len-= 8 ) {
+    for (len=subnet->mask, x=0; x<addr_len && len>0; x++, len-= 8) {
         if (len < 8) {
             mask = 8 - len;
-            if ((ip->addr[x] >> mask) != ( subnet->addr[x] >> mask )) 
+            if ((ip->addr[x] >> mask) != (subnet->addr[x] >> mask)) 
                 return 0;
             return 1;
         }
-        else {
+        else
             if (ip->addr[x] != subnet->addr[x])
                 return 0;
-        }
     }
     return 1;
 }
@@ -296,6 +370,7 @@ tom_capture_one(struct tom *tomi)
         return tom_process(tomi, hdr, packet);
         break;
     case 0:  /* timeout */
+        printf("TIMEOUT!\n");
         return TOM_TIMEOUT;
         break;
     default:
@@ -335,11 +410,10 @@ tom_free(struct tom *tomi)
     struct host *nexthost;
     tmphost = tomi->hosts;
     while (tmphost) {
-        printf("Derp...\n");
         nexthost = tmphost->next;
         free(tmphost);
-        printf("Derp afterwards\n");
         tmphost = nexthost;
+        tomi->hosts_size--;
     }
     tomi->hosts = NULL;
     
@@ -358,6 +432,7 @@ tom_init(struct tom *tomi, char *iface_name)
     tomi->ebuff[0] = '\0';
     tomi->targets = NULL;
     tomi->hosts = NULL;
+    tomi->hosts_size = 0;
 
     tomi->interface_name = strdup(iface_name);
     if (!tomi->interface_name)
