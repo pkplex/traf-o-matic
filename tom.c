@@ -33,8 +33,6 @@ host_log(struct tom *tomi, struct host *h)
     FILE *fh;
     struct timeval now;
 
-    printf("sizeof(path) is %u\n", sizeof(path));
-
     ip_str(&h->ip, ip, sizeof(ip));
     if (strlcpy(path, tomi->log_dir, sizeof(path)) >= sizeof(path) ||
         strlcat(path, "/", sizeof(path)) >= sizeof(path) ||
@@ -60,7 +58,6 @@ host_log(struct tom *tomi, struct host *h)
     gettimeofday(&now, NULL);
     h->last_logged = now.tv_sec;
 
-    printf("Logged ok...\n");
     return TOM_OK;
 }
 
@@ -148,7 +145,6 @@ host_account(struct tom *tomi,
     char buff[128];
     ip_str(ip, buff, sizeof(buff));
 
-
     /* see if ip is in the targeted list */
     struct ip_addr *tgt;
     tgt = tomi->targets;
@@ -157,10 +153,8 @@ host_account(struct tom *tomi,
             break;
         tgt = tgt->next;
     }
-    if (!tgt) {
-        printf("Skipped %s\n", buff);
+    if (!tgt)
         return TOM_SKIPPED;
-    }
 
     /* now see if we already have an existing host with same ip */
     struct host *ehost;
@@ -188,10 +182,16 @@ host_account(struct tom *tomi,
         ehost->rx += header->caplen;
 
     /* DEBUG */
-    printf("(%u) %s %u tx %u rx \n", tomi->hosts_size, 
-           buff, 
-           ehost->tx, 
-           ehost->rx);
+    /* printf("(%u) %s %u tx %u rx \n", tomi->hosts_size,  */
+    /*        buff,  */
+    /*        ehost->tx,  */
+    /*        ehost->rx); */
+
+    /* does it need logging? */
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    if (now.tv_sec - ehost->last_logged > TOM_LOGTIME)
+        host_log(tomi, ehost);
 
     return TOM_OK;
 }
@@ -202,15 +202,12 @@ int
 tom_add_target(struct tom *tomi, struct ip_addr *ip)
 {
     /* do some sanity checking... */
-    if (!tomi || !ip)
+    if ((!tomi || !ip) ||
+        (ip->type != TOM_IP4 && ip->type != TOM_IP6) ||
+        (ip->type == TOM_IP4 && ip->mask > 24) ||
+        (ip->type == TOM_IP6 && ip->mask > 128))
         return TOM_INVALID;
-    if (ip->type != TOM_IP4 && ip->type != TOM_IP6)
-        return TOM_INVALID;
-    if (ip->type == TOM_IP4 && ip->mask > 24)
-        return TOM_INVALID;
-    if (ip->type == TOM_IP6 && ip->mask > 128)
-        return TOM_INVALID;
-    
+
     struct ip_addr *tmp;
     tmp = malloc(sizeof(struct ip_addr));
     if (!tmp) 
@@ -450,7 +447,12 @@ tom_free(struct tom *tomi)
         tomi->hosts_size--;
     }
     tomi->hosts = NULL;
-    
+
+    if (tomi->log_dir)
+        free(tomi->log_dir);
+    tomi->log_dir = NULL;
+
+
 }
 
 /* opens up a pcap session and gets shit ready */
@@ -467,6 +469,8 @@ tom_init(struct tom *tomi, char *iface_name, const char *log_dir)
     tomi->targets = NULL;
     tomi->hosts = NULL;
     tomi->hosts_size = 0;
+    tomi->interface_name = NULL;
+    tomi->log_dir = NULL;
 
     tomi->interface_name = strdup(iface_name);
     if (!tomi->interface_name)

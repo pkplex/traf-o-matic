@@ -42,16 +42,16 @@ main(int argc, char **argv)
 
     struct ip_addr b;
     b.type = TOM_IP4;
-    b.mask = 0;
-    b.addr[0] = 0;
-    b.addr[1] = 0;
-    b.addr[2] = 0;
+    b.mask = 24;
+    b.addr[0] = 192;
+    b.addr[1] = 168;
+    b.addr[2] = 5;
     b.addr[3] = 0;
     tom_add_target(&tomi, &b);
 
     syslog(LOG_INFO, "Starting");
-    while (tom_capture_one(&tomi) != TOM_FAIL) { 
 
+    while (tom_capture_one(&tomi) != TOM_FAIL) { 
         /* DEBUG ONLY: wont be running purge each capture */
         host_purge(&tomi);
     }
