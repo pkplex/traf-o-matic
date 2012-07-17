@@ -15,13 +15,19 @@
  */
 
 #include <sys/types.h>
+
 #include <unistd.h>
+#include <features.h>
 #include <syslog.h>
+#include <pwd.h>
+#include <grp.h>
 #include <stdio.h>
 #include <err.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+
+
 
 #include "tom.h"
 #include "string.h"
@@ -32,6 +38,8 @@ parse_ip(const char *ip)
 {
     unsigned int t[5];
     int x;
+
+
     if (sscanf(ip, "%u.%u.%u.%u/%u", &t[0], &t[1], &t[2], &t[3], &t[4]) != 5)
         return NULL;
 
@@ -68,10 +76,24 @@ main(int argc, char **argv)
     int oret;
     char interface[64] = { '\0' };
     char logdir[256] = { '\0' };
+    char user[64] = { '\0' };
+    char group[64] = { '\0' };
+    uid_t uid;
+    gid_t gid;
+
     struct ip_addr *targets = NULL;
     struct ip_addr *ipret = NULL;
-    while ((oret = getopt(argc, argv, "fi:l:t:")) != -1) {
+
+    while ((oret = getopt(argc, argv, "fi:l:t:u:")) != -1) {
         switch (oret) {
+        case 'u':
+            if (strlcpy(user, optarg, sizeof(user)) >= sizeof(user))
+                errx(1, "username too long\n");
+            break;
+        case 'g':
+            if (strlcpy(group, optarg, sizeof(group)) >= sizeof(group))
+                errx(1, "group too long\n");
+            break;
         case 'f':
             dontfork = 1;
             break;
@@ -82,11 +104,8 @@ main(int argc, char **argv)
             strlcpy(logdir, optarg, sizeof(logdir));
             break;
         case 't':
-            //printf("Got option -t: '%s'\n", optarg);
-            /* TODO: parse ip address and add it to target list */
-            
             if (!(ipret = parse_ip(optarg)))
-                err(1, "%s is a invalid ip address", optarg);
+                errx(1, "%s is a invalid ip address", optarg);
             if (!targets)
                 targets = ipret;
             else {
@@ -105,6 +124,24 @@ main(int argc, char **argv)
     if (logdir[0] == '\0')
         errx(1, "No log directory given");
 
+    /* get the username and group */
+    if (user[0] == '\0')
+        errx(1, "No username specified");
+
+    struct passwd *pw;
+    if ((pw = getpwnam(user)) == NULL)
+		errx(1, "no such user %s", user);
+    gid = pw->pw_gid;
+    uid = pw->pw_uid;
+
+    struct group *gr;
+    if (group[0] != '\0') {
+        if ((gr = getgrnam(group)) == NULL)
+            errx(1, "no such group %s", group);
+        else
+            gid = gr->gr_gid;
+    }
+
     /* sort out syslog */
     openlog("tom", LOG_PID | LOG_NDELAY, LOG_DAEMON);
 
@@ -112,11 +149,15 @@ main(int argc, char **argv)
     if (tom_init(&tomi, interface, logdir) != TOM_OK)
         return 1;
 
+    /* if a group was specified, grab that shit too */
+    
+
+
     /* add the ip addresses we want to monitor */
     ipret = targets;
     while (targets) {
         if (tom_add_target(&tomi, targets) != TOM_OK)
-            err(1, "invalid target ip address");
+            errx(1, "invalid target ip address");
         ipret = targets->next;
         free(targets);
         targets = ipret;
@@ -124,21 +165,22 @@ main(int argc, char **argv)
     targets = NULL;
 
     syslog(LOG_INFO, "Dropping priledges");
-    setegid(1000);
-    seteuid(1000);
+    setregid(gid, gid);
+    setreuid(uid, uid);
+
     if (!dontfork) 
         daemon(1, 0);
 
     syslog(LOG_INFO, "Starting");
 
-    int x = 0;
+    /* int x = 0; */
     while (tom_capture_one(&tomi) != TOM_FAIL) { 
         /* DEBUG ONLY: wont be running purge each capture */
         host_purge(&tomi);
-        x++;
-        printf("%i\n", x);
-        if (x > 100)
-            break;
+        /* x++; */
+        /* printf("%i\n", x); */
+        /* if (x > 100) */
+        /*     break; */
     }
 
     tom_free(&tomi);
