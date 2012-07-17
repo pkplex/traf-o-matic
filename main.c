@@ -19,25 +19,62 @@
 #include <syslog.h>
 #include <stdio.h>
 #include <err.h>
+#include <string.h>
+#include <ctype.h>
+#include <stdlib.h>
+
 #include "tom.h"
 #include "string.h"
 
-int
-parse_ip(struct ip_addr *ip)
+/* attempt to parse an IP */
+struct ip_addr *
+parse_ip(const char *ip)
 {
-    return 1;
+    unsigned int t[5];
+    int x;
+    if (sscanf(ip, "%u.%u.%u.%u/%u", &t[0], &t[1], &t[2], &t[3], &t[4]) != 5)
+        return NULL;
+
+    /* check for invalid values */
+    for (x=0; x<4; x++) {
+        if (t[x] > 255) 
+            return NULL;
+    }
+    if (t[4] > 32)
+        return NULL;
+
+    /* construct a ip_addr to return */
+    struct ip_addr *ret;
+    ret = malloc(sizeof(struct ip_addr));
+    if (!ret)
+        err(1, NULL);
+
+    ret->type = TOM_IP4;
+    ret->addr[0] = t[0];
+    ret->addr[1] = t[1];
+    ret->addr[2] = t[2];
+    ret->addr[3] = t[3];
+    ret->mask = t[4];
+    ret->next = NULL;
+
+    return ret;
 }
 
 int 
 main(int argc, char **argv) 
 {
     struct tom tomi;
+    int dontfork = 0;
     int oret;
     char interface[64] = { '\0' };
     char logdir[256] = { '\0' };
-
-    while ((oret = getopt(argc, argv, "i:l:t:")) != -1) {
+    struct ip_addr *targets = NULL;
+    struct ip_addr *ipret = NULL;
+    while ((oret = getopt(argc, argv, "fi:l:t:")) != -1) {
         switch (oret) {
+        case 'f':
+            dontfork = 1;
+            break;
         case 'i':
             strlcpy(interface, optarg, sizeof(interface));
             break;
@@ -47,6 +84,15 @@ main(int argc, char **argv)
         case 't':
             //printf("Got option -t: '%s'\n", optarg);
             /* TODO: parse ip address and add it to target list */
+            
+            if (!(ipret = parse_ip(optarg)))
+                err(1, "%s is a invalid ip address", optarg);
+            if (!targets)
+                targets = ipret;
+            else {
+                ipret->next = targets;
+                targets = ipret;
+            }
             break;
         default: 
             errx(1, "Unknown option -%c", oret);
@@ -66,34 +112,33 @@ main(int argc, char **argv)
     if (tom_init(&tomi, interface, logdir) != TOM_OK)
         return 1;
 
-    struct ip_addr a;
-    a.type = TOM_IP4;
-    a.mask = 12;
-    a.addr[0] = 172;
-    a.addr[1] = 16;
-    a.addr[2] = 0;
-    a.addr[3] = 0;
-    tom_add_target(&tomi, &a);
-
-    struct ip_addr b;
-    b.type = TOM_IP4;
-    b.mask = 24;
-    b.addr[0] = 192;
-    b.addr[1] = 168;
-    b.addr[2] = 5;
-    b.addr[3] = 0;
-    tom_add_target(&tomi, &b);
+    /* add the ip addresses we want to monitor */
+    ipret = targets;
+    while (targets) {
+        if (tom_add_target(&tomi, targets) != TOM_OK)
+            err(1, "invalid target ip address");
+        ipret = targets->next;
+        free(targets);
+        targets = ipret;
+    }
+    targets = NULL;
 
     syslog(LOG_INFO, "Dropping priledges");
     setegid(1000);
     seteuid(1000);
-    /*daemon(1, 0);*/
+    if (!dontfork) 
+        daemon(1, 0);
 
     syslog(LOG_INFO, "Starting");
 
+    int x = 0;
     while (tom_capture_one(&tomi) != TOM_FAIL) { 
         /* DEBUG ONLY: wont be running purge each capture */
         host_purge(&tomi);
+        x++;
+        printf("%i\n", x);
+        if (x > 100)
+            break;
     }
 
     tom_free(&tomi);
