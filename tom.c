@@ -71,24 +71,14 @@ host_purge(struct tom *tomi)
     struct host *thishost; /* this host */
     struct host *prevhost; /* prev host */
     struct host *nexthost; /* next host */
-
     struct timeval now;
     gettimeofday(&now, NULL);
-
-    /* DEBUG */
-    char dbuff[128];
 
     prevhost = NULL;
     thishost = tomi->hosts;
     while (thishost) {
         nexthost = thishost->next;
         if ((now.tv_sec - thishost->last_traffic) > TOM_PURGETIME) {
-
-            /* debug */
-            ip_str(&thishost->ip, dbuff, sizeof(dbuff));
-            printf("purging %s (%u hosts remaining in list)\n", 
-                   dbuff, 
-                   tomi->hosts_size - 1);
 
             /* if any data pending to write, write it... */
             if (thishost->tx > 0 || thishost->tx > 0)
@@ -134,7 +124,10 @@ host_alloc() {
     return tmphost;
 }
 
-/* log tx/rx bytes against a targeted host */
+/* log tx/rx bytes against a targeted host
+ * the tx argument specifies weather the given ip is the source (TX)
+ * or the dst (RX)
+ */
 int
 host_account(struct tom *tomi, 
              struct pcap_pkthdr *header, 
@@ -196,7 +189,6 @@ host_account(struct tom *tomi,
     return TOM_OK;
 }
 
-
 /* add a new target ip address / subnet to watch. */
 int 
 tom_add_target(struct tom *tomi, struct ip_addr *ip)
@@ -249,7 +241,6 @@ ip_str(struct ip_addr *ip, char *buff, size_t buff_size)
     }
     else 
         snprintf(buff, buff_size, "ip_str(): IP6 not done yet");
-
 }
 
 int
@@ -363,19 +354,12 @@ tom_process(struct tom *tomi, struct pcap_pkthdr *header, const uint8_t *packet)
         ret = tom_process_ip4(pp, &pair);
         break;
     default:
-        printf("Got some other bullshit packet version...\n");
+        return TOM_SKIPPED;
         break;
     }
 
     if (ret != TOM_OK)
         return ret;
-
-    /* DEBUG shit... */
-    /* char src_buff[128]; */
-    /* char dst_buff[128]; */
-    /* ip_str(&pair.src, src_buff, sizeof(src_buff)); */
-    /* ip_str(&pair.dst, dst_buff, sizeof(dst_buff)); */
-    /* printf("from %s to %s %u bytes\n", src_buff, dst_buff, header->caplen); */
 
     /* now do some accounting... */
     host_account(tomi, header, &pair.src, 1);
@@ -400,7 +384,6 @@ tom_capture_one(struct tom *tomi)
         return tom_process(tomi, hdr, packet);
         break;
     case 0:  /* timeout */
-        printf("TIMEOUT!\n");
         return TOM_TIMEOUT;
         break;
     default:
@@ -479,8 +462,6 @@ tom_init(struct tom *tomi, char *iface_name, const char *log_dir)
     tomi->log_dir = strdup(log_dir);
     if (!tomi->log_dir)
         err(1, NULL);
-    printf("Log dir is '%s'\n", tomi->log_dir);
-
 
     /* open the pcap device */
     tomi->pcap_handle = pcap_open_live(tomi->interface_name,
@@ -488,10 +469,10 @@ tom_init(struct tom *tomi, char *iface_name, const char *log_dir)
                                        1, /* promiscuous mode */
                                        0, /* no timeout */
                                        tomi->ebuff);
-
     /* any luck? */
     if (!tomi->pcap_handle) {
-        warn("pcap_open_live() %s", tomi->ebuff);
+        syslog(LOG_EMERG, "%s", tomi->ebuff);
+        warn("%s", tomi->ebuff);
         tom_free(tomi);
         return TOM_FAIL;
     }
