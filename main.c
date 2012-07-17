@@ -27,8 +27,6 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-
-
 #include "tom.h"
 #include "string.h"
 
@@ -71,18 +69,19 @@ parse_ip(const char *ip)
 int 
 main(int argc, char **argv) 
 {
-    struct tom tomi;
-    int dontfork = 0;
-    int oret;
-    char interface[64] = { '\0' };
-    char logdir[256] = { '\0' };
-    char user[64] = { '\0' };
-    char group[64] = { '\0' };
-    uid_t uid;
-    gid_t gid;
-
-    struct ip_addr *targets = NULL;
-    struct ip_addr *ipret = NULL;
+    struct tom      tomi;
+    int             dontfork = 0;
+    int             oret;
+    char interface[64]       = { '\0' };
+    char logdir[256]         = { '\0' };
+    char user[64]            = { '\0' };
+    char group[64]           = { '\0' };
+    uid_t           uid;
+    gid_t           gid;
+    struct ip_addr *targets  = NULL;
+    struct ip_addr *ipret    = NULL;
+    struct passwd  *pw       = NULL;
+    struct group   *gr       = NULL;
 
     while ((oret = getopt(argc, argv, "fi:l:t:u:")) != -1) {
         switch (oret) {
@@ -128,13 +127,13 @@ main(int argc, char **argv)
     if (user[0] == '\0')
         errx(1, "No username specified");
 
-    struct passwd *pw;
+
     if ((pw = getpwnam(user)) == NULL)
 		errx(1, "no such user %s", user);
     gid = pw->pw_gid;
     uid = pw->pw_uid;
 
-    struct group *gr;
+
     if (group[0] != '\0') {
         if ((gr = getgrnam(group)) == NULL)
             errx(1, "no such group %s", group);
@@ -149,10 +148,6 @@ main(int argc, char **argv)
     if (tom_init(&tomi, interface, logdir) != TOM_OK)
         return 1;
 
-    /* if a group was specified, grab that shit too */
-    
-
-
     /* add the ip addresses we want to monitor */
     ipret = targets;
     while (targets) {
@@ -165,13 +160,17 @@ main(int argc, char **argv)
     targets = NULL;
 
     syslog(LOG_INFO, "Dropping priledges");
-    setregid(gid, gid);
-    setreuid(uid, uid);
+    if (setregid(gid, gid) == -1)
+        err(1, "setregid()");
+
+    if (setreuid(uid, uid) == -1)
+        err(1, "setreuid()");
 
     if (!dontfork) 
-        daemon(1, 0);
+        if (daemon(1, 0))
+            err(1, "daemon()");
 
-    syslog(LOG_INFO, "Starting");
+    syslog(LOG_INFO, "started");
 
     /* int x = 0; */
     while (tom_capture_one(&tomi) != TOM_FAIL) { 

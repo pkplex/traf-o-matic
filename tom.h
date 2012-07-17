@@ -32,8 +32,10 @@ enum {
 };
 
 #define TOM_CAPLEN    65536     /* max packet capture size */
-#define TOM_PURGETIME 60        /* time till expiry of inactive hosts  */
-#define TOM_LOGTIME   30        /* time till log should be written  */
+#define TOM_PURGETIME 10        /* time till expiry of inactive hosts  */
+#define TOM_LOGTIME   5        /* time till log should be written  */
+/* #define TOM_PURGETIME 60        /\* time till expiry of inactive hosts  *\/ */
+/* #define TOM_LOGTIME   30        /\* time till log should be written  *\/ */
 
 
 /* structure which holds a single ip address */
