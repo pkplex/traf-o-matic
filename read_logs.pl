@@ -43,6 +43,7 @@ sub parse ()
 
     my $bleh = sprintf("%.2f MB out, %.2f MB in" , ($tx / 1024 / 1024), ($rx / 1024 / 1024));
     print "$fname: $bleh\n";
+    # different output format...
     # print "$fname: " . localtime($low_epoc) 
     #     . " to " 
     #     . localtime($high_epoc) 

@@ -30,12 +30,25 @@
 #include "tom.h"
 #include "string.h"
 
+char *progname = NULL;
+
+void
+usage()
+{
+	fprintf(stderr,
+            "usage: %s -u username -g groupname -l logidr "
+            "-i interface -t subnet -f (stay in foreground)\n"
+            "eg: %s -i eth0 -u tom -l /home/tom/iplogs -t 192.168.0.0/24\n",
+            progname, progname);
+	exit(1);
+}
+
 /* attempt to parse an IP */
 struct ip_addr *
 parse_ip(const char *ip)
 {
     unsigned int t[5];
-    int x;
+    int          x;
 
     if (sscanf(ip, "%u.%u.%u.%u/%u", &t[0], &t[1], &t[2], &t[3], &t[4]) != 5)
         return NULL;
@@ -82,26 +95,34 @@ main(int argc, char **argv)
     struct passwd  *pw       = NULL;
     struct group   *gr       = NULL;
 
+    progname = argv[0];
+
     while ((oret = getopt(argc, argv, "fi:l:t:u:")) != -1) {
         switch (oret) {
         case 'u':
+            /* user name */
             if (strlcpy(user, optarg, sizeof(user)) >= sizeof(user))
                 errx(1, "username too long\n");
             break;
         case 'g':
+            /* group name */
             if (strlcpy(group, optarg, sizeof(group)) >= sizeof(group))
                 errx(1, "group too long\n");
             break;
         case 'f':
+            /* dont fork, stay in foreground */
             dontfork = 1;
             break;
         case 'i':
+            /* interface name */
             strlcpy(interface, optarg, sizeof(interface));
             break;
         case 'l':
+            /* log directory */
             strlcpy(logdir, optarg, sizeof(logdir));
             break;
         case 't':
+            /* target subnet */
             if (!(ipret = parse_ip(optarg)))
                 errx(1, "%s is a invalid ip address", optarg);
             if (!targets)
@@ -112,8 +133,8 @@ main(int argc, char **argv)
             }
             break;
         default: 
-            errx(1, "Unknown option -%c", oret);
-            break;
+            usage();
+            /* NOT REACHED */
         }
     }
 
@@ -125,7 +146,6 @@ main(int argc, char **argv)
     /* get the username and group */
     if (user[0] == '\0')
         errx(1, "No username specified");
-
 
     if ((pw = getpwnam(user)) == NULL)
 		errx(1, "no such user %s", user);
@@ -165,10 +185,10 @@ main(int argc, char **argv)
     if (setreuid(uid, uid) == -1)
         err(1, "setreuid()");
 
-    if (!dontfork) 
+    if (!dontfork) {
         if (daemon(1, 0))
             err(1, "daemon()");
-
+    }
     syslog(LOG_INFO, "started");
 
     /* int x = 0; */
