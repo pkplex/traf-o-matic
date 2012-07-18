@@ -42,17 +42,11 @@ sub parse ()
     }
 
     my $bleh = sprintf("%.2f MB out, %.2f MB in" , ($tx / 1024 / 1024), ($rx / 1024 / 1024));
-    #print "$bleh\n";;
-
-    print "$fname -> $bleh\n";
-    # print "$fname " . localtime($low_epoc) 
+    print "$fname: $bleh\n";
+    # print "$fname: " . localtime($low_epoc) 
     #     . " to " 
     #     . localtime($high_epoc) 
     #     . " $bleh\n";
-
-    # print "File $fname:\n";
-    # print "From " . localtime($low_epoc) . " to " . localtime($high_epoc) . "\n";
-
 
     return;
 }
