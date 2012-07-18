@@ -30,8 +30,9 @@
 #include "tom.h"
 #include "string.h"
 
-char *progname = NULL;
+char *progname = NULL;  /* for useage() */
 
+/* print usage */
 void
 usage()
 {
@@ -43,7 +44,7 @@ usage()
 	exit(1);
 }
 
-/* attempt to parse an IP */
+/* attempt to parse an IP, and return a malloc'ed struct ip_addr if valid */
 struct ip_addr *
 parse_ip(const char *ip)
 {
@@ -143,16 +144,15 @@ main(int argc, char **argv)
     if (logdir[0] == '\0')
         errx(1, "No log directory given");
 
-    /* get the username and group */
+    /* grab the username and use its uid and gid */
     if (user[0] == '\0')
         errx(1, "No username specified");
-
     if ((pw = getpwnam(user)) == NULL)
 		errx(1, "no such user %s", user);
     gid = pw->pw_gid;
     uid = pw->pw_uid;
 
-
+    /* if username given, then use it's gid */
     if (group[0] != '\0') {
         if ((gr = getgrnam(group)) == NULL)
             errx(1, "no such group %s", group);

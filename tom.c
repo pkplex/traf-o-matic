@@ -243,6 +243,7 @@ ip_str(struct ip_addr *ip, char *buff, size_t buff_size)
         snprintf(buff, buff_size, "ip_str(): IP6 not done yet");
 }
 
+/* compares two ip_addr's and returns nonzero if they are the same. */
 int
 ip_same(struct ip_addr *a, struct ip_addr *b) 
 {
@@ -264,6 +265,7 @@ ip_same(struct ip_addr *a, struct ip_addr *b)
     return 1;
 }
 
+/* if ip is within subnet, then return nonzero. return 0 if different versions */
 int
 ip_same_subnet(struct ip_addr *ip, struct ip_addr *subnet)
 {
@@ -319,6 +321,7 @@ tom_process_ip4(uint8_t *packet, struct ip_pair *pair)
         return TOM_OK;
 }
 
+/* process a single packet */
 int
 tom_process(struct tom *tomi, struct pcap_pkthdr *header, const uint8_t *packet)
 {
