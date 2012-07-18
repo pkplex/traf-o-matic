@@ -1,10 +1,16 @@
 #!/usr/bin/perl
 use strict;
 
-my @FILES = <./logs/*>;
+my $argc = $#ARGV + 1;
+if ($argc <= 0) {
+    print "log directory not specified\n";
+    exit;
+}
+my $log_dir = $ARGV[0];
+
+my @FILES = <$log_dir/*>;
 
 map { &parse($_); } @FILES;
-
 
 # parse a single file (file name given as argument) and tally up the traffic.
 sub parse ()
@@ -34,8 +40,6 @@ sub parse ()
     if ($low_epoc == 0 or $high_epoc == 0) {
         return;
     }
-
-
 
     my $bleh = sprintf("%.2f MB out, %.2f MB in" , ($tx / 1024 / 1024), ($rx / 1024 / 1024));
     #print "$bleh\n";;
