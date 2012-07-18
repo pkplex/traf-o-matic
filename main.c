@@ -37,7 +37,6 @@ parse_ip(const char *ip)
     unsigned int t[5];
     int x;
 
-
     if (sscanf(ip, "%u.%u.%u.%u/%u", &t[0], &t[1], &t[2], &t[3], &t[4]) != 5)
         return NULL;
 
