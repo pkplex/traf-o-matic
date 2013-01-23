@@ -17,7 +17,6 @@
 #include <sys/types.h>
 
 #include <unistd.h>
-#include <features.h>
 #include <syslog.h>
 #include <pwd.h>
 #include <grp.h>
@@ -98,7 +97,7 @@ main(int argc, char **argv)
 
     progname = argv[0];
 
-    while ((oret = getopt(argc, argv, "fi:l:t:u:")) != -1) {
+    while ((oret = getopt(argc, argv, "fi:l:t:u:g:")) != -1) {
         switch (oret) {
         case 'u':
             /* user name */
@@ -148,7 +147,7 @@ main(int argc, char **argv)
     if (user[0] == '\0')
         errx(1, "No username specified");
     if ((pw = getpwnam(user)) == NULL)
-		errx(1, "no such user %s", user);
+		errx(1, "No such user %s", user);
     gid = pw->pw_gid;
     uid = pw->pw_uid;
 
@@ -160,8 +159,13 @@ main(int argc, char **argv)
             gid = gr->gr_gid;
     }
 
+    if (targets == NULL)
+        errx(1, "No target subnets given");
+
     /* sort out syslog */
     openlog("tom", LOG_PID | LOG_NDELAY, LOG_DAEMON);
+
+
 
     /* open/setup pcap and what not */
     if (tom_init(&tomi, interface, logdir) != TOM_OK)
